@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ECommerceAPI.Data;
 using ECommerceAPI.Models;
+using ECommerceAPI.DTOs;
 
 namespace ECommerceAPI.Controllers
 {
@@ -17,9 +18,23 @@ namespace ECommerceAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
+        public async Task<ActionResult<IEnumerable<Product>>> GetProducts(
+            [FromQuery] string? category1 = null,
+            [FromQuery] decimal? minPrice = null,
+            [FromQuery] decimal? maxPrice = null)
         {
-            return await _context.Products.ToListAsync();
+            var query = _context.Products.AsQueryable();
+
+            if (!string.IsNullOrEmpty(category1))
+                query = query.Where(p => p.Category1 == category1);
+
+            if (minPrice.HasValue)
+                query = query.Where(p => p.UnitPrice >= minPrice.Value);
+
+            if (maxPrice.HasValue)
+                query = query.Where(p => p.UnitPrice <= maxPrice.Value);
+
+            return await query.ToListAsync();
         }
 
         [HttpGet("{id}")]
@@ -33,22 +48,38 @@ namespace ECommerceAPI.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<Product>> CreateProduct(Product product)
+        public async Task<ActionResult<Product>> CreateProduct(CreateProductDto dto)
         {
+            var product = new Product
+            {
+                ItemCode = dto.ItemCode,
+                ItemName = dto.ItemName,
+                UnitPrice = dto.UnitPrice,
+                Category1 = dto.Category1,
+                Category2 = dto.Category2,
+                Brand = dto.Brand
+            };
+
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateProduct(int id, Product product)
+        public async Task<IActionResult> UpdateProduct(int id, CreateProductDto dto)
         {
-            if (id != product.Id)
-                return BadRequest();
+            var product = await _context.Products.FindAsync(id);
+            if (product == null)
+                return NotFound();
 
-            _context.Entry(product).State = EntityState.Modified;
+            product.ItemCode = dto.ItemCode;
+            product.ItemName = dto.ItemName;
+            product.UnitPrice = dto.UnitPrice;
+            product.Category1 = dto.Category1;
+            product.Category2 = dto.Category2;
+            product.Brand = dto.Brand;
+
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
