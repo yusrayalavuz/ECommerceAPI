@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using ECommerceAPI.Data;
-using ECommerceAPI.Models;
 using ECommerceAPI.DTOs;
+using ECommerceAPI.Services;
 
 namespace ECommerceAPI.Controllers
 {
@@ -10,89 +8,53 @@ namespace ECommerceAPI.Controllers
     [Route("api/[controller]")]
     public class ProductsController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IProductService _productService;
 
-        public ProductsController(AppDbContext context)
+        public ProductsController(IProductService productService)
         {
-            _context = context;
+            _productService = productService;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Product>>> GetProducts(
+        public async Task<IActionResult> GetProducts(
             [FromQuery] string? category1 = null,
             [FromQuery] decimal? minPrice = null,
             [FromQuery] decimal? maxPrice = null)
         {
-            var query = _context.Products.AsQueryable();
-
-            if (!string.IsNullOrEmpty(category1))
-                query = query.Where(p => p.Category1 == category1);
-
-            if (minPrice.HasValue)
-                query = query.Where(p => p.UnitPrice >= minPrice.Value);
-
-            if (maxPrice.HasValue)
-                query = query.Where(p => p.UnitPrice <= maxPrice.Value);
-
-            return await query.ToListAsync();
+            var products = await _productService.GetProductsAsync(category1, minPrice, maxPrice);
+            return Ok(products);
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<Product>> GetProduct(int id)
+        public async Task<IActionResult> GetProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
+            var product = await _productService.GetProductByIdAsync(id);
             if (product == null)
                 return NotFound();
 
-            return product;
+            return Ok(product);
         }
 
         [HttpPost]
-        public async Task<ActionResult<Product>> CreateProduct(CreateProductDto dto)
+        public async Task<IActionResult> CreateProduct(CreateProductDto dto)
         {
-            var product = new Product
-            {
-                ItemCode = dto.ItemCode,
-                ItemName = dto.ItemName,
-                UnitPrice = dto.UnitPrice,
-                Category1 = dto.Category1,
-                Category2 = dto.Category2,
-                Brand = dto.Brand
-            };
-
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
+            var product = await _productService.CreateProductAsync(dto);
             return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
         }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProduct(int id, CreateProductDto dto)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
-                return NotFound();
-
-            product.ItemCode = dto.ItemCode;
-            product.ItemName = dto.ItemName;
-            product.UnitPrice = dto.UnitPrice;
-            product.Category1 = dto.Category1;
-            product.Category2 = dto.Category2;
-            product.Brand = dto.Brand;
-
-            await _context.SaveChangesAsync();
+            var result = await _productService.UpdateProductAsync(id, dto);
+            if (!result) return NotFound();
             return NoContent();
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
-                return NotFound();
-
-            _context.Products.Remove(product);
-            await _context.SaveChangesAsync();
-
+            var result = await _productService.DeleteProductAsync(id);
+            if (!result) return NotFound();
             return NoContent();
         }
     }
